@@ -58,7 +58,8 @@ CSS = """
 }
 @keyframes twinkle { from{opacity:.30} to{opacity:.7} }
 
-.block-container { padding-top: 1.0rem; max-width: 1120px; position:relative; z-index:1; }
+.block-container { padding-top: 3.5rem; max-width: 1120px; position:relative; z-index:1; }
+header[data-testid="stHeader"] { background: transparent; }
 html, body, [class*="css"] { font-family:'Poppins', sans-serif; }
 h1,h2,h3,h4 { font-family:'Orbitron', sans-serif; letter-spacing:1px; }
 
@@ -66,6 +67,7 @@ h1,h2,h3,h4 { font-family:'Orbitron', sans-serif; letter-spacing:1px; }
 .arena-title {
   font-family:'Orbitron', sans-serif;
   font-size: 3.1rem; font-weight: 900; text-align:center; margin-bottom:2px;
+  line-height: 1.25; padding-top: .18em;
   background: linear-gradient(90deg,#00e5ff,#7a5cff,#ff2bd6,#ffd24a,#00e5ff);
   background-size: 300% auto;
   -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
