@@ -299,119 +299,121 @@ def render_profiles():
     live_clock()
     st.write("")
 
-    # ---- PIN unlock gate (shown when a locked profile is being opened) ----
-    unlock_slug = st.session_state.get("unlock_target")
-    if unlock_slug:
-        entry = storage.get_entry(unlock_slug)
-        if entry and storage.has_pin(entry):
-            st.markdown(f"#### 🔒 Enter PIN for **{entry['name']}**")
-            with st.form("unlock_form", clear_on_submit=True):
-                pin = st.text_input("PIN", type="password", label_visibility="collapsed",
-                                    placeholder="Enter your PIN")
-                u1, u2 = st.columns(2)
-                ok = u1.form_submit_button("🔓 Unlock & Play", use_container_width=True, type="primary")
-                cancel = u2.form_submit_button("Cancel", use_container_width=True)
-            if cancel:
-                st.session_state.pop("unlock_target", None)
-                st.rerun()
-            if ok:
-                if storage.verify_pin(entry, pin):
+    _, mid, _ = st.columns([1, 2, 1])
+    with mid:
+        # ---- PIN unlock gate (shown when a locked profile is being opened) ----
+        unlock_slug = st.session_state.get("unlock_target")
+        if unlock_slug:
+            entry = storage.get_entry(unlock_slug)
+            if entry and storage.has_pin(entry):
+                st.markdown(f"<div style='text-align:center;'>🔒 Enter PIN for <b>{entry['name']}</b></div>",
+                            unsafe_allow_html=True)
+                with st.form("unlock_form", clear_on_submit=True):
+                    pin = st.text_input("PIN", type="password", label_visibility="collapsed",
+                                        placeholder="Enter your PIN")
+                    u1, u2 = st.columns(2)
+                    ok = u1.form_submit_button("🔓 Unlock & Play", use_container_width=True, type="primary")
+                    cancel = u2.form_submit_button("Cancel", use_container_width=True)
+                if cancel:
                     st.session_state.pop("unlock_target", None)
-                    select_profile(entry["name"])
-                else:
-                    st.error("Wrong PIN. Try again.")
-            return
-        else:
-            st.session_state.pop("unlock_target", None)
-
-    profiles = storage.list_profiles()
-    last = storage.last_active_profile()
-
-    if profiles:
-        st.markdown("#### 👥 Your profiles")
-        summaries = [storage.profile_summary(p) for p in profiles]
-        # order: last-active first
-        summaries.sort(key=lambda s: (s["name"] != last, -s["xp"]))
-        cols = st.columns(3)
-        for i, s in enumerate(summaries):
-            with cols[i % 3]:
-                star = "⭐ " if s["name"] == last else ""
-                lock = " 🔒" if s["locked"] else ""
-                st.markdown(
-                    f"<div class='card' style='text-align:center;'>"
-                    f"<div style='font-size:1.35rem;font-weight:700;color:#eafcff;'>{star}{s['name']}{lock}</div>"
-                    f"<div class='stat-lbl' style='margin-top:2px;'>{s['rank']}</div>"
-                    f"<div style='margin-top:10px;'>🔥 <b>{s['streak']}</b> &nbsp;·&nbsp; ✨ <b>{s['xp']}</b> XP &nbsp;·&nbsp; {s['runs']} runs</div>"
-                    f"</div>", unsafe_allow_html=True)
-                btn_label = f"🔒 Play as {s['name']}" if s["locked"] else f"▶️ Play as {s['name']}"
-                if st.button(btn_label, key=f"play_{s['slug']}", use_container_width=True, type="primary"):
-                    if s["locked"]:
-                        st.session_state["unlock_target"] = s["slug"]
-                        st.rerun()
+                    st.rerun()
+                if ok:
+                    if storage.verify_pin(entry, pin):
+                        st.session_state.pop("unlock_target", None)
+                        select_profile(entry["name"])
                     else:
-                        select_profile(s["name"])
-        st.write("")
+                        st.error("Wrong PIN. Try again.")
+                return
+            else:
+                st.session_state.pop("unlock_target", None)
 
-    st.markdown("#### ➕ Create a new profile")
-    st.markdown("<div style='color:#ffd24a;font-size:.92rem;margin-bottom:6px;'>🔒 Want to save your progress and keep "
-                "others from checking your play? Add a PIN to your profile — it's optional.</div>",
-                unsafe_allow_html=True)
-    with st.form("new_profile_form", clear_on_submit=True):
-        c1, c2 = st.columns([3, 1])
-        with c1:
+        profiles = storage.list_profiles()
+        last = storage.last_active_profile()
+
+        if profiles:
+            st.markdown("<div style='text-align:center;font-weight:700;margin-bottom:4px;'>👥 Your profiles</div>",
+                        unsafe_allow_html=True)
+            summaries = [storage.profile_summary(p) for p in profiles]
+            # order: last-active first
+            summaries.sort(key=lambda s: (s["name"] != last, -s["xp"]))
+            cols = st.columns(2)
+            for i, s in enumerate(summaries):
+                with cols[i % 2]:
+                    star = "⭐ " if s["name"] == last else ""
+                    lock = " 🔒" if s["locked"] else ""
+                    st.markdown(
+                        f"<div class='card' style='text-align:center;'>"
+                        f"<div style='font-size:1.35rem;font-weight:700;color:#eafcff;'>{star}{s['name']}{lock}</div>"
+                        f"<div class='stat-lbl' style='margin-top:2px;'>{s['rank']}</div>"
+                        f"<div style='margin-top:10px;'>🔥 <b>{s['streak']}</b> &nbsp;·&nbsp; ✨ <b>{s['xp']}</b> XP &nbsp;·&nbsp; {s['runs']} runs</div>"
+                        f"</div>", unsafe_allow_html=True)
+                    btn_label = f"🔒 Play as {s['name']}" if s["locked"] else f"▶️ Play as {s['name']}"
+                    if st.button(btn_label, key=f"play_{s['slug']}", use_container_width=True, type="primary"):
+                        if s["locked"]:
+                            st.session_state["unlock_target"] = s["slug"]
+                            st.rerun()
+                        else:
+                            select_profile(s["name"])
+            st.write("")
+
+        st.markdown("<div style='text-align:center;font-weight:700;margin-bottom:4px;'>➕ Create a new profile</div>",
+                    unsafe_allow_html=True)
+        st.markdown("<div style='color:#ffd24a;font-size:.92rem;margin-bottom:6px;text-align:center;'>🔒 Want to save "
+                    "your progress and keep others from checking your play? Add a PIN to your profile — it's optional.</div>",
+                    unsafe_allow_html=True)
+        with st.form("new_profile_form", clear_on_submit=True):
             new_name = st.text_input("Profile name", key="new_profile_name",
                                      placeholder="e.g. Meet, Morning Me, Debate Prep...",
                                      label_visibility="collapsed")
             new_pin = st.text_input("PIN (optional)", key="new_profile_pin", type="password",
                                     placeholder="Optional PIN — leave blank for no lock",
                                     label_visibility="collapsed")
-        with c2:
             submitted = st.form_submit_button("Create & Play", use_container_width=True, type="primary")
-    if submitted:
-        name = (new_name or "").strip()
-        if not name:
-            st.warning("Give your profile a name first.")
-        else:
-            entry = storage.create_profile(name, pin=(new_pin or "").strip() or None)
-            select_profile(entry["name"])
+        if submitted:
+            name = (new_name or "").strip()
+            if not name:
+                st.warning("Give your profile a name first.")
+            else:
+                entry = storage.create_profile(name, pin=(new_pin or "").strip() or None)
+                select_profile(entry["name"])
 
-    if profiles:
-        with st.expander("🔐 Manage profiles · PINs · delete"):
-            st.caption("A PIN lightly protects a profile on a shared computer (save files are local, so it's not "
-                       "bank-grade security). Deleting a profile permanently erases its streak, XP and history.")
-            for p in profiles:
-                entry = storage.get_entry(p["slug"])
-                locked = storage.has_pin(entry)
-                st.markdown(f"**{p['name']}** {'🔒 locked' if locked else '🔓 no PIN'}")
-                with st.form(f"pinform_{p['slug']}", clear_on_submit=True):
-                    cur_pin = ""
-                    if locked:
-                        cur_pin = st.text_input("Current PIN", type="password", key=f"cur_{p['slug']}",
-                                                placeholder="Current PIN (needed to change/remove/delete)")
-                    new_p = st.text_input("New PIN", type="password", key=f"newpin_{p['slug']}",
-                                          placeholder="New PIN (to set or change)")
-                    m1, m2, m3 = st.columns(3)
-                    set_btn = m1.form_submit_button("Set / change PIN", use_container_width=True)
-                    rem_btn = m2.form_submit_button("Remove PIN", use_container_width=True)
-                    del_btn = m3.form_submit_button("🗑️ Delete profile", use_container_width=True)
+        if profiles:
+            with st.expander("🔐 Manage profiles · PINs · delete"):
+                st.caption("A PIN lightly protects a profile (only a salted hash is stored, never the PIN). "
+                           "Deleting a profile permanently erases its streak, XP and history.")
+                for p in profiles:
+                    entry = storage.get_entry(p["slug"])
+                    locked = storage.has_pin(entry)
+                    st.markdown(f"**{p['name']}** {'🔒 locked' if locked else '🔓 no PIN'}")
+                    with st.form(f"pinform_{p['slug']}", clear_on_submit=True):
+                        cur_pin = ""
+                        if locked:
+                            cur_pin = st.text_input("Current PIN", type="password", key=f"cur_{p['slug']}",
+                                                    placeholder="Current PIN (needed to change/remove/delete)")
+                        new_p = st.text_input("New PIN", type="password", key=f"newpin_{p['slug']}",
+                                              placeholder="New PIN (to set or change)")
+                        m1, m2, m3 = st.columns(3)
+                        set_btn = m1.form_submit_button("Set / change PIN", use_container_width=True)
+                        rem_btn = m2.form_submit_button("Remove PIN", use_container_width=True)
+                        del_btn = m3.form_submit_button("🗑️ Delete profile", use_container_width=True)
 
-                if locked and (set_btn or rem_btn or del_btn) and not storage.verify_pin(entry, cur_pin):
-                    st.error(f"Wrong current PIN for {p['name']} — action blocked.")
-                elif set_btn:
-                    if (new_p or "").strip():
-                        storage.set_pin(p["slug"], new_p.strip())
-                        st.success(f"PIN set for {p['name']}.")
+                    if locked and (set_btn or rem_btn or del_btn) and not storage.verify_pin(entry, cur_pin):
+                        st.error(f"Wrong current PIN for {p['name']} — action blocked.")
+                    elif set_btn:
+                        if (new_p or "").strip():
+                            storage.set_pin(p["slug"], new_p.strip())
+                            st.success(f"PIN set for {p['name']}.")
+                            st.rerun()
+                        else:
+                            st.warning("Enter a new PIN to set.")
+                    elif rem_btn:
+                        storage.set_pin(p["slug"], None)
+                        st.info(f"PIN removed for {p['name']}.")
                         st.rerun()
-                    else:
-                        st.warning("Enter a new PIN to set.")
-                elif rem_btn:
-                    storage.set_pin(p["slug"], None)
-                    st.info(f"PIN removed for {p['name']}.")
-                    st.rerun()
-                elif del_btn:
-                    storage.delete_profile(p["slug"])
-                    st.rerun()
-                st.divider()
+                    elif del_btn:
+                        storage.delete_profile(p["slug"])
+                        st.rerun()
+                    st.divider()
 
 
 # ---------------------------------------------------------------------------
