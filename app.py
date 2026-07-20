@@ -819,8 +819,52 @@ def render_results():
 # Router
 # ---------------------------------------------------------------------------
 
+def render_admin():
+    """Read-only diagnostics, reachable only with ?admin=<ADMIN_KEY secret>.
+    Never shows PINs (only whether a profile is locked)."""
+    st.markdown("<div class='arena-title'>🛠️ ADMIN</div>", unsafe_allow_html=True)
+    st.caption("Read-only. PINs are never shown here — only a 🔒 if a profile is locked.")
+
+    _, mid, _ = st.columns([1, 4, 1])
+    with mid:
+        st.markdown(f"**Storage backend:** {storage.backend_name()}")
+        profiles = storage.list_profiles()
+        st.markdown(f"**Profiles stored:** {len(profiles)}")
+        if profiles:
+            rows = []
+            for p in profiles:
+                s = storage.profile_summary(p)
+                rows.append({
+                    "Profile": s["name"],
+                    "Rank": s["rank"],
+                    "XP": s["xp"],
+                    "Streak": s["streak"],
+                    "Runs": s["runs"],
+                    "Lock": "🔒" if s["locked"] else "",
+                })
+            rows.sort(key=lambda r: r["XP"], reverse=True)
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+        else:
+            st.info("No profiles stored yet — create one on the app and refresh this page.")
+
+        if st.button("← Back to the app", use_container_width=True):
+            st.query_params.clear()
+            st.rerun()
+
+
 def main():
     init_session()
+
+    # Secret-gated admin readout: only reachable if an ADMIN_KEY secret is set
+    # AND the URL carries ?admin=<that key>. Off by default on a public app.
+    try:
+        admin_key = st.secrets.get("ADMIN_KEY")
+    except Exception:
+        admin_key = None
+    if admin_key and st.query_params.get("admin") == str(admin_key):
+        render_admin()
+        return
+
     stage = st.session_state.stage
 
     # must have a profile selected for anything other than the picker

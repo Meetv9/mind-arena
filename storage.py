@@ -269,6 +269,11 @@ def _load_registry() -> dict:
     return reg
 
 
+def backend_name() -> str:
+    """Human-readable name of the active storage backend (for diagnostics)."""
+    return "Postgres (cloud)" if _USE_PG else "Local JSON files"
+
+
 def list_profiles() -> list:
     """Return the registry's profile entries: [{name, slug, created}, ...]."""
     return _load_registry()["profiles"]
