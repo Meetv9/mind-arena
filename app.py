@@ -157,6 +157,10 @@ h1,h2,h3,h4 { font-family:'Orbitron', sans-serif; letter-spacing:1px; }
 .stTabs [data-baseweb="tab"] { font-family:'Poppins',sans-serif; font-weight:600; }
 [data-testid="stMetricValue"] { font-family:'Poppins',sans-serif; font-weight:700; color:#eafcff; }
 hr { border-color: rgba(255,255,255,.08); }
+.arena-footer { text-align:center; margin:34px auto 6px; color:#7f95b6; font-size:.9rem;
+  font-family:'Poppins',sans-serif; }
+.arena-footer a { color:#00e5ff; text-decoration:none; font-weight:600; }
+.arena-footer a:hover { text-decoration:underline; filter:drop-shadow(0 0 6px rgba(0,229,255,.5)); }
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -854,6 +858,17 @@ def render_admin():
             st.rerun()
 
 
+def render_footer():
+    st.markdown(
+        "<div class='arena-footer'>Made by "
+        "<a href='https://meetv9.github.io/Meet_Vaghani_Portfolio/' target='_blank' "
+        "rel='noopener'>Meet Vaghani</a> · "
+        "<a href='https://meetv9.github.io/Meet_Vaghani_Portfolio/' target='_blank' "
+        "rel='noopener'>Portfolio ↗</a></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def main():
     init_session()
 
@@ -897,6 +912,10 @@ def main():
     else:
         st.session_state.stage = "home"
         st.rerun()
+
+    # Footer on the calm screens (not mid-run, to avoid distraction)
+    if stage in ("profiles", "home", "results"):
+        render_footer()
 
 
 if __name__ == "__main__":
