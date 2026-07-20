@@ -1,0 +1,18 @@
+# Local player data (never publish; cloud uses Postgres instead)
+mind_arena_data/
+
+# Streamlit secrets — contains the DB connection string
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS
+.DS_Store
+
+# Local editor / tooling config (machine-specific paths)
+.claude/
