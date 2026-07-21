@@ -304,11 +304,13 @@ hr { border-color: rgba(255,255,255,.08); }
   .stat-num { font-size:1.6rem; }
   .stat-lbl { font-size:.62rem; letter-spacing:1px; }
   .streak-fire { font-size:2rem; }
-  /* let 3–4 column stat rows wrap into a neat grid instead of squishing */
+  /* allow rows to wrap, but DON'T force widths — that keeps the centering
+     st.columns([1,2,1]) rows proportional so content stays centered. */
   [data-testid="stHorizontalBlock"] { flex-wrap:wrap; gap:8px !important; }
-  [data-testid="stHorizontalBlock"] > [data-testid="column"],
-  [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
-    flex: 1 1 calc(50% - 8px); min-width: calc(50% - 8px);
+  /* only 4-column stat/metric rows wrap into a tidy 2×2 grid */
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(4)) > [data-testid="column"],
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)) > [data-testid="stColumn"] {
+    flex: 1 1 calc(50% - 8px) !important; min-width: calc(50% - 8px);
   }
   /* prompt / teaser box */
   .prompt-box { padding:18px 14px; border-radius:16px; }
@@ -909,6 +911,8 @@ def render_speak():
     audio = st.audio_input("Hit record, speak for the whole timer, then stop.", key="speak_audio")
 
     if audio is not None:
+        st.caption("▶️ Play it back to hear yourself:")
+        st.audio(audio)
         if st.button("🔍 Analyze my speech", type="primary"):
             with st.spinner("Analyzing your delivery..."):
                 run["speech_analysis"] = analysis.analyze_speech(audio.getvalue(), target_seconds=120)
@@ -917,7 +921,8 @@ def render_speak():
     if run["speech_analysis"]:
         _show_analysis(run["speech_analysis"])
     else:
-        st.info("No mic? No problem — speak out loud anyway (that's the real training), then self-rate below.")
+        st.info("Record and analyze a speech to earn speaking points. No mic? Speak out loud anyway "
+                "(that's the real training) and self-rate below — just note this reflection isn't scored.")
         run["speech_selfrate"] = st.slider("How did that speech FEEL? (1 = shaky, 5 = on fire)",
                                             1, 5, run["speech_selfrate"], key="speak_self")
 
@@ -951,6 +956,8 @@ def render_boss():
     audio = st.audio_input("Record your 60-second challenge run.", key="boss_audio")
 
     if audio is not None:
+        st.caption("▶️ Play it back to hear yourself:")
+        st.audio(audio)
         if st.button("🔍 Analyze my attempt", type="primary"):
             with st.spinner("Analyzing..."):
                 run["challenge_analysis"] = analysis.analyze_speech(audio.getvalue(), target_seconds=60)
@@ -959,6 +966,8 @@ def render_boss():
     if run["challenge_analysis"]:
         _show_analysis(run["challenge_analysis"])
     else:
+        st.info("Record and analyze your attempt to earn boss points. The self-rating below is personal "
+                "reflection only — it isn't scored.")
         run["challenge_selfrate"] = st.slider("How did the boss challenge FEEL? (1–5)",
                                                1, 5, run["challenge_selfrate"], key="boss_self")
 
@@ -995,10 +1004,13 @@ def render_results():
         brain_solved = run["solved"]
         brain_score = brain_solved * 20
 
+        # Points come ONLY from a real, analyzed recording. If you didn't speak
+        # (no recording analyzed), you get 0 for that stage — self-rating is
+        # personal feedback, not free points.
         sp = run.get("speech_analysis")
-        speech_score = sp["score"] if sp else run.get("speech_selfrate", 3) * 18
+        speech_score = int(sp.get("score", 0)) if sp else 0
         ch = run.get("challenge_analysis")
-        challenge_score = ch["score"] if ch else run.get("challenge_selfrate", 3) * 18
+        challenge_score = int(ch.get("score", 0)) if ch else 0
 
         summary = storage.record_run(state, {
             "brain_score": brain_score,
