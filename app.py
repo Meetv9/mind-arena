@@ -161,9 +161,69 @@ hr { border-color: rgba(255,255,255,.08); }
   font-family:'Poppins',sans-serif; }
 .arena-footer a { color:#00e5ff; text-decoration:none; font-weight:600; }
 .arena-footer a:hover { text-decoration:underline; filter:drop-shadow(0 0 6px rgba(0,229,255,.5)); }
+
+/* ===================== CLASSIC ARCADE / CRT EFFECTS ===================== */
+/* synthwave perspective grid floor — sits behind all content, on every page */
+.grid-floor {
+  position:fixed; left:-10%; right:-10%; bottom:0; height:42vh; pointer-events:none; z-index:0;
+  background-image:
+    linear-gradient(rgba(0,229,255,.30) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,43,214,.24) 1px, transparent 1px);
+  background-size:46px 46px;
+  transform: perspective(300px) rotateX(60deg); transform-origin: bottom center;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 88%);
+  mask-image: linear-gradient(to top, #000 0%, transparent 88%);
+  animation: gridmove 3.2s linear infinite; opacity:.55;
+}
+@keyframes gridmove { from { background-position:0 0; } to { background-position:0 46px; } }
+
+/* CRT scanlines + faint flicker, laid over the whole screen (clicks pass through) */
+.crt-overlay {
+  position:fixed; inset:0; pointer-events:none; z-index:9998;
+  background: repeating-linear-gradient(to bottom,
+     rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,.16) 3px, rgba(0,0,0,0) 4px);
+  opacity:.4; animation: crtflicker 4s steps(50) infinite;
+}
+@keyframes crtflicker { 0%,100%{opacity:.4} 48%{opacity:.32} 52%{opacity:.46} }
+
+/* scrolling neon ticker */
+.arcade-marquee { overflow:hidden; white-space:nowrap;
+  border-top:1px solid rgba(0,229,255,.20); border-bottom:1px solid rgba(255,43,214,.20);
+  margin:8px 0 16px; padding:6px 0; }
+.arcade-marquee span { display:inline-block; padding-left:100%;
+  font-family:'Orbitron',sans-serif; letter-spacing:3px; font-size:.82rem;
+  color:#8fe9ff; text-shadow:0 0 10px rgba(0,229,255,.5);
+  animation: ticker 20s linear infinite; }
+@keyframes ticker { from{transform:translateX(0)} to{transform:translateX(-100%)} }
+
+/* blinking PRESS START prompt */
+.press-start { text-align:center; font-family:'Orbitron',sans-serif; font-weight:800;
+  letter-spacing:2px; font-size:1.0rem; color:#ffd24a; text-shadow:0 0 14px rgba(255,210,74,.6);
+  animation: blink 1.1s steps(2,start) infinite; margin:4px 0 12px; }
+@keyframes blink { 50% { opacity:.12; } }
+
+/* benefits / "what this game trains you" cards */
+.benefits-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px;
+  margin:8px auto 20px; max-width:980px; position:relative; z-index:1; }
+@media (max-width:820px){ .benefits-grid { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:520px){ .benefits-grid { grid-template-columns:1fr; } }
+.ben-card { position:relative;
+  background:linear-gradient(145deg, rgba(0,229,255,.07), rgba(255,43,214,.05));
+  border:1px solid rgba(0,229,255,.25); border-radius:14px; padding:14px 16px; text-align:left;
+  box-shadow:0 6px 22px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.ben-card:hover { transform:translateY(-4px); border-color:rgba(255,210,74,.6);
+  box-shadow:0 12px 34px rgba(0,229,255,.22); }
+.ben-ico { font-size:1.7rem; filter:drop-shadow(0 0 10px rgba(0,229,255,.5)); }
+.ben-ttl { font-family:'Orbitron',sans-serif; font-size:.84rem; font-weight:700; color:#eafcff;
+  letter-spacing:.5px; margin:5px 0 3px; }
+.ben-txt { font-size:.82rem; color:#9db3d4; line-height:1.45; }
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
+# Global arcade overlays (synthwave grid floor + CRT scanlines) — every page.
+st.markdown("<div class='grid-floor'></div><div class='crt-overlay'></div>",
+            unsafe_allow_html=True)
 
 # Stage durations (seconds)
 DUR_BRAIN = 120
@@ -204,9 +264,16 @@ def switch_profile():
 def start_new_run():
     state = st.session_state.state
     lvl = storage.level_for_xp(state["xp"])
-    teasers = random.sample(content.BRAIN_TEASERS, k=min(14, len(content.BRAIN_TEASERS)))
-    prop, prompt = random.choice(content.SPEECH_PROMPTS)
+    # Persistent shuffle-bags: deal a generous batch of teasers (enough that even
+    # a very fast player won't loop within one run) and one fresh prompt, without
+    # repeating anything the player has recently seen. Persist the draw so the
+    # decks carry over across runs and days.
+    t_idx = storage.draw_from_deck(state, "teaser_deck", len(content.BRAIN_TEASERS), 18)
+    teasers = [content.BRAIN_TEASERS[i] for i in t_idx]
+    p_idx = storage.draw_from_deck(state, "prompt_deck", len(content.SPEECH_PROMPTS), 1)[0]
+    prop, prompt = content.SPEECH_PROMPTS[p_idx]
     boss = content.pick_boss_challenge(lvl)
+    storage.save_state(state)
     st.session_state.run = {
         "teasers": teasers,
         "t_idx": 0,
@@ -298,12 +365,37 @@ def stage_header(num, title, subtitle):
 # PROFILE PICKER
 # ---------------------------------------------------------------------------
 
+BENEFITS = [
+    ("🧠", "Master ESG", "Carbon markets, LCA, SBTi, net zero & carbon accounting — learn your field by playing."),
+    ("🎙️", "Forge Your Voice", "Daily impromptu speaking builds real confidence, clarity and fluency."),
+    ("🔥", "Streaks & XP", "Levels, ranks, badges and a streak calendar keep you coming back."),
+    ("⚡", "Just 6 Minutes", "Three fast trials a day — no fluff, all gains, done before your coffee."),
+    ("📊", "Real Feedback", "Offline voice analysis scores your pace, pauses and vocal variety."),
+    ("🎯", "Learn + Compete", "A full ESG learning library, plus a fresh boss challenge every run."),
+]
+
+
+def render_benefits():
+    st.markdown(
+        "<div class='arcade-marquee'><span>★ SHARPEN YOUR MIND ★ FORGE YOUR VOICE ★ "
+        "MASTER ESG ★ BUILD YOUR STREAK ★ 6 MINUTES A DAY ★ SHARPEN YOUR MIND ★ "
+        "FORGE YOUR VOICE ★ MASTER ESG ★</span></div>",
+        unsafe_allow_html=True)
+    cards = "".join(
+        f"<div class='ben-card'><div class='ben-ico'>{ico}</div>"
+        f"<div class='ben-ttl'>{ttl}</div><div class='ben-txt'>{txt}</div></div>"
+        for ico, ttl, txt in BENEFITS)
+    st.markdown(f"<div class='benefits-grid'>{cards}</div>", unsafe_allow_html=True)
+
+
 def render_profiles():
     st.markdown("<div class='arena-title'>🧠⚡ MIND ARENA ⚡🧠</div>", unsafe_allow_html=True)
-    st.markdown("<p class='subtitle'>Choose your fighter — or create a new one. Every profile keeps its own streak, XP & badges.</p>",
+    st.markdown("<p class='subtitle'>The 6-minute daily game that sharpens your ESG mind and your speaking voice.</p>",
                 unsafe_allow_html=True)
     live_clock()
-    st.write("")
+
+    render_benefits()
+    st.markdown("<div class='press-start'>▶ INSERT PROFILE · PRESS START</div>", unsafe_allow_html=True)
 
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
@@ -492,10 +584,13 @@ def render_home():
         st.caption("6 minutes · non-stop · everything compulsory")
 
     st.write("")
-    tab_cal, tab_coach, tab_badges = st.tabs(["📅 Calendar & Streak", "🎙️ Speaking Coach & Warm-up", "🏅 Achievements"])
+    tab_cal, tab_learn, tab_coach, tab_badges = st.tabs(
+        ["📅 Calendar & Streak", "📚 ESG Learning", "🎙️ Speaking Coach & Warm-up", "🏅 Achievements"])
 
     with tab_cal:
         render_calendar(state)
+    with tab_learn:
+        render_learn()
     with tab_coach:
         render_coach()
     with tab_badges:
@@ -559,6 +654,16 @@ def render_coach():
 
     with st.expander("🧱 The instant structure for ANY impromptu speech"):
         st.markdown(content.SPEECH_STRUCTURE_TIP)
+
+
+def render_learn():
+    st.markdown("Every quiz question, speaking prompt, and boss challenge in Mind Arena is about "
+                "**ESG & sustainability**. This is your plain-language field guide — read a section, "
+                "then go win the quiz. Fact-checked and jargon-free (examples included).")
+    st.caption("New here? Open **“What is ESG?”** first, then work down the list.")
+    for i, sec in enumerate(content.ESG_LEARNING):
+        with st.expander(f"{sec['icon']} {sec['title']}", expanded=(i == 0)):
+            st.markdown(sec["body"])
 
 
 def render_badges(state):

@@ -25,6 +25,7 @@ transparent to the rest of the app. This module owns:
 import hashlib
 import json
 import os
+import random
 import re
 import secrets
 import threading
@@ -220,6 +221,14 @@ def _default_state(profile: str = None, slug: str = None) -> dict:
         "badges": [],                 # list of badge ids unlocked
         "history": {},                # "YYYY-MM-DD": {score, brain, speech, challenge}
         "created": datetime.now().isoformat(timespec="seconds"),
+        # "Shuffle-bag" decks so a player sees EVERY question/prompt once before
+        # any repeats (and never the same one two runs running). Each holds the
+        # not-yet-dealt indices; *_size records the pool size it was built for so
+        # the bag rebuilds automatically when the content bank grows.
+        "teaser_deck": [],
+        "teaser_deck_size": None,
+        "prompt_deck": [],
+        "prompt_deck_size": None,
     }
 
 
@@ -389,6 +398,49 @@ def save_state(state: dict) -> None:
     slug = state.get("slug") or _slugify(state.get("profile") or "player")
     state["slug"] = slug
     _write_profile_raw(slug, state)
+
+
+def draw_from_deck(state: dict, deck_key: str, total: int, k: int) -> list:
+    """Deal `k` unique indices in [0, total) from a persistent per-profile
+    "shuffle-bag" stored in state[deck_key].
+
+    Guarantees:
+      * a player sees every item once before ANY repeat (the bag is only
+        reshuffled once it is empty);
+      * no repeats within a single draw;
+      * when the bag reshuffles mid-draw, the just-dealt items are pushed to the
+        back, so you never get the same item twice across the boundary either;
+      * if the content pool size changes (the bank grew/shrank), the bag rebuilds
+        automatically and stale/out-of-range indices are dropped.
+
+    The caller is responsible for persisting the mutated `state` (save_state).
+    """
+    if total <= 0:
+        return []
+    k = max(0, min(k, total))
+    size_key = deck_key + "_size"
+
+    deck = state.get(deck_key)
+    if not isinstance(deck, list) or state.get(size_key) != total:
+        deck = []                      # pool changed (or first use) -> rebuild
+        state[size_key] = total
+    else:
+        deck = [i for i in deck if isinstance(i, int) and 0 <= i < total]
+
+    drawn = []
+    while len(drawn) < k:
+        if not deck:
+            fresh = list(range(total))
+            random.shuffle(fresh)
+            if drawn:                  # avoid an immediate repeat across reshuffle
+                just = set(drawn)
+                deck = [i for i in fresh if i not in just] + [i for i in fresh if i in just]
+            else:
+                deck = fresh
+        drawn.append(deck.pop(0))
+
+    state[deck_key] = deck
+    return drawn
 
 
 def profile_summary(entry: dict) -> dict:
