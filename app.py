@@ -13,6 +13,7 @@ Only dependency beyond Streamlit is numpy (for offline speech analysis).
 
 import time
 import random
+import html
 from datetime import datetime
 
 import streamlit as st
@@ -21,6 +22,80 @@ import streamlit.components.v1 as components
 import content
 import storage
 import analysis
+
+
+def _esc(s) -> str:
+    """HTML/XML-escape user-provided text before embedding it in markup."""
+    return html.escape(str(s), quote=True)
+
+
+SHARE_URL = "https://mindarena.streamlit.app"
+
+
+def build_share_text(state, summary, scores) -> str:
+    """Wordle-style, copy-paste result summary (works anywhere, mobile-friendly)."""
+    brain, speech, boss = (int(x) for x in scores)
+    total = brain + speech + boss
+    # a compact visual bar out of 5 blocks per stage (score maxes ~90-100 per stage)
+    def bar(v):
+        filled = max(0, min(5, round(v / 20)))
+        return "🟩" * filled + "⬛" * (5 - filled)
+    return (
+        f"🧠⚡ MIND ARENA — {datetime.now():%d %b %Y}\n"
+        f"Lv {summary['level_after']} · {summary['rank']}\n"
+        f"🧩 Brain  {bar(brain)}\n"
+        f"🎙️ Speak  {bar(speech)}\n"
+        f"⚡ Boss   {bar(boss)}\n"
+        f"Score {total} · +{summary['xp_gain']} XP · 🔥{summary['streak']}-day streak\n"
+        f"Train your ESG mind & voice 👉 {SHARE_URL}"
+    )
+
+
+def build_share_svg(state, summary, scores) -> bytes:
+    """Self-contained SVG result card (1200×630, social-share ratio). No deps."""
+    brain, speech, boss = (int(x) for x in scores)
+    total = brain + speech + boss
+    name = _esc(state.get("profile", "Player"))
+    rank = _esc(summary["rank"])
+    date = datetime.now().strftime("%d %b %Y")
+
+    def stage_row(y, icon, label, val):
+        pct = max(0.0, min(1.0, val / 100.0))
+        w = int(560 * pct)
+        return (
+            f"<text x='90' y='{y+6}' font-size='30' fill='#eafcff'>{icon} {label}</text>"
+            f"<rect x='430' y='{y-22}' rx='14' width='560' height='30' fill='#16233b'/>"
+            f"<rect x='430' y='{y-22}' rx='14' width='{w}' height='30' fill='#38f5a8'/>"
+            f"<text x='1010' y='{y+4}' font-size='28' fill='#ffd24a' font-weight='700'>{val}</text>"
+        )
+
+    svg = f"""<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='630' viewBox='0 0 1200 630'>
+  <defs>
+    <linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'>
+      <stop offset='0' stop-color='#0b0f1a'/>
+      <stop offset='0.55' stop-color='#141033'/>
+      <stop offset='1' stop-color='#2a0d3a'/>
+    </linearGradient>
+    <linearGradient id='ttl' x1='0' y1='0' x2='1' y2='0'>
+      <stop offset='0' stop-color='#00e5ff'/>
+      <stop offset='1' stop-color='#ff2bd6'/>
+    </linearGradient>
+  </defs>
+  <rect width='1200' height='630' fill='url(#bg)'/>
+  <rect x='16' y='16' width='1168' height='598' rx='26' fill='none' stroke='#2b3a5e' stroke-width='2'/>
+  <text x='600' y='108' text-anchor='middle' font-size='58' font-weight='800' fill='url(#ttl)' font-family='Verdana,Arial,sans-serif'>MIND ARENA</text>
+  <text x='600' y='158' text-anchor='middle' font-size='26' fill='#9db3d4' font-family='Verdana,Arial,sans-serif'>Daily ESG mind &amp; voice training · {date}</text>
+  <text x='600' y='232' text-anchor='middle' font-size='40' font-weight='700' fill='#eafcff' font-family='Verdana,Arial,sans-serif'>{name}</text>
+  <text x='600' y='276' text-anchor='middle' font-size='28' fill='#ffd24a' font-family='Verdana,Arial,sans-serif'>Level {summary['level_after']} · {rank}</text>
+  <g font-family='Verdana,Arial,sans-serif'>
+    {stage_row(360, '🧩', 'Brain', brain)}
+    {stage_row(418, '🎙️', 'Speaking', speech)}
+    {stage_row(476, '⚡', 'Boss', boss)}
+  </g>
+  <text x='600' y='552' text-anchor='middle' font-size='34' font-weight='800' fill='#38f5a8' font-family='Verdana,Arial,sans-serif'>SCORE {total} · +{summary['xp_gain']} XP · 🔥 {summary['streak']}-day streak</text>
+  <text x='600' y='596' text-anchor='middle' font-size='24' fill='#7f94b5' font-family='Verdana,Arial,sans-serif'>mindarena.streamlit.app</text>
+</svg>"""
+    return svg.encode("utf-8")
 
 # ---------------------------------------------------------------------------
 # Page config + theme
@@ -218,6 +293,37 @@ hr { border-color: rgba(255,255,255,.08); }
 .ben-ttl { font-family:'Orbitron',sans-serif; font-size:.84rem; font-weight:700; color:#eafcff;
   letter-spacing:.5px; margin:5px 0 3px; }
 .ben-txt { font-size:.82rem; color:#9db3d4; line-height:1.45; }
+
+/* ===================== MOBILE PASS ===================== */
+@media (max-width: 640px){
+  .block-container { padding-top: 2.4rem; padding-left:.7rem; padding-right:.7rem; }
+  .arena-title { font-size: 2.0rem; line-height:1.2; }
+  .subtitle { font-size:.9rem; }
+  /* stat cards: keep them readable, tighter padding */
+  .card { padding:13px 12px; border-radius:14px; }
+  .stat-num { font-size:1.6rem; }
+  .stat-lbl { font-size:.62rem; letter-spacing:1px; }
+  .streak-fire { font-size:2rem; }
+  /* let 3–4 column stat rows wrap into a neat grid instead of squishing */
+  [data-testid="stHorizontalBlock"] { flex-wrap:wrap; gap:8px !important; }
+  [data-testid="stHorizontalBlock"] > [data-testid="column"],
+  [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    flex: 1 1 calc(50% - 8px); min-width: calc(50% - 8px);
+  }
+  /* prompt / teaser box */
+  .prompt-box { padding:18px 14px; border-radius:16px; }
+  .prop-emoji { font-size:3.6rem; }
+  .teaser-q { font-size:1.2rem; line-height:1.45; }
+  /* big CTA */
+  .big-btn>button { font-size:1.05rem; padding:.7rem 0; letter-spacing:.5px; }
+  /* tabs: allow horizontal scroll rather than overflow */
+  .stTabs [data-baseweb="tab-list"] { overflow-x:auto; flex-wrap:nowrap; }
+  .stTabs [data-baseweb="tab"] { font-size:.8rem; padding:6px 8px; }
+  /* dial back heavy effects so they don't overwhelm small screens */
+  .grid-floor { height:30vh; opacity:.7; }
+  .arcade-marquee { font-size:.7rem; }
+  .arena-footer { font-size:.8rem; }
+}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -584,9 +690,11 @@ def render_home():
         st.caption("6 minutes · non-stop · everything compulsory")
 
     st.write("")
-    tab_cal, tab_learn, tab_coach, tab_badges = st.tabs(
-        ["📅 Calendar & Streak", "📚 ESG Learning", "🎙️ Speaking Coach & Warm-up", "🏅 Achievements"])
+    tab_board, tab_cal, tab_learn, tab_coach, tab_badges = st.tabs(
+        ["🏆 Leaderboard", "📅 Calendar & Streak", "📚 ESG Learning", "🎙️ Speaking Coach & Warm-up", "🏅 Achievements"])
 
+    with tab_board:
+        render_leaderboard(state)
     with tab_cal:
         render_calendar(state)
     with tab_learn:
@@ -595,6 +703,43 @@ def render_home():
         render_coach()
     with tab_badges:
         render_badges(state)
+
+
+def render_leaderboard(state):
+    rows = storage.leaderboard()
+    me = state.get("slug")
+    st.markdown("Ranked by **total XP**, then longest streak, then best single-run score. "
+                "Train daily to climb — every run counts.")
+    if not rows:
+        st.info("No players on the board yet. Finish a run to claim the #1 spot!")
+        return
+
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+    html = "<div class='card' style='padding:6px 4px;'>"
+    for r in rows[:25]:
+        pos = medals.get(r["pos"], f"<span style='color:#8aa0c0;'>#{r['pos']}</span>")
+        mine = (r["slug"] == me)
+        rowbg = "background:rgba(56,245,168,.12);border-radius:10px;" if mine else ""
+        youtag = " <span style='color:#38f5a8;font-weight:700;'>· YOU</span>" if mine else ""
+        streak = f"🔥{r['streak']}" if r["streak"] else "—"
+        html += (
+            f"<div style='display:flex;align-items:center;gap:10px;padding:8px 12px;{rowbg}'>"
+            f"<div style='width:34px;font-size:1.05rem;text-align:center;'>{pos}</div>"
+            f"<div style='flex:1;min-width:0;'>"
+            f"<b style='color:#eafcff;'>{_esc(r['name'])}</b>{youtag}"
+            f"<br><span style='color:#9db3d4;font-size:.82rem;'>Lv {r['level']} · {_esc(r['rank'])}</span></div>"
+            f"<div style='text-align:right;'>"
+            f"<b style='color:#ffd24a;'>{r['xp']:,} XP</b>"
+            f"<br><span style='color:#9db3d4;font-size:.82rem;'>{streak} · {r['runs']} runs</span></div>"
+            f"</div>")
+    html += "</div>"
+    st.markdown(html, unsafe_allow_html=True)
+
+    if me and all(r["slug"] != me for r in rows[:25]):
+        for r in rows:
+            if r["slug"] == me:
+                st.caption(f"You're **#{r['pos']}** of {len(rows)} — {r['xp']:,} XP. Keep training to break into the top 25!")
+                break
 
 
 def render_calendar(state):
@@ -661,7 +806,11 @@ def render_learn():
                 "**ESG & sustainability**. This is your plain-language field guide — read a section, "
                 "then go win the quiz. Fact-checked and jargon-free (examples included).")
     st.caption("New here? Open **“What is ESG?”** first, then work down the list.")
-    for i, sec in enumerate(content.ESG_LEARNING):
+    sections = getattr(content, "ESG_LEARNING", []) or []
+    if not sections:
+        st.info("📚 The learning library is updating — refresh in a moment to read it.")
+        return
+    for i, sec in enumerate(sections):
         with st.expander(f"{sec['icon']} {sec['title']}", expanded=(i == 0)):
             st.markdown(sec["body"])
 
@@ -914,6 +1063,33 @@ def render_results():
     else:
         st.markdown("- Record your speech next time (mic permitting) to unlock detailed voice analytics — "
                     "pace, pauses, volume steadiness and vocal variety.")
+
+    # shareable result card
+    st.write("")
+    st.markdown("### 📤 Share your result")
+    scores = (brain_score, speech_score, challenge_score)
+    total = int(brain_score) + int(speech_score) + int(challenge_score)
+    st.markdown(
+        f"<div class='card' style='text-align:center;'>"
+        f"<div style='font-family:Orbitron,sans-serif;font-size:1.1rem;letter-spacing:2px;"
+        f"background:linear-gradient(90deg,#00e5ff,#ff2bd6);-webkit-background-clip:text;"
+        f"-webkit-text-fill-color:transparent;'>MIND ARENA</div>"
+        f"<div style='color:#eafcff;font-weight:700;font-size:1.3rem;margin-top:4px;'>{_esc(state['profile'])}</div>"
+        f"<div style='color:#ffd24a;'>Lv {summary['level_after']} · {_esc(summary['rank'])}</div>"
+        f"<div style='color:#9db3d4;margin-top:8px;'>🧩 {int(brain_score)} &nbsp; 🎙️ {int(speech_score)} &nbsp; ⚡ {int(challenge_score)}</div>"
+        f"<div style='color:#38f5a8;font-weight:800;font-size:1.15rem;margin-top:8px;'>"
+        f"SCORE {total} · +{summary['xp_gain']} XP · 🔥 {summary['streak']}-day streak</div>"
+        f"</div>",
+        unsafe_allow_html=True)
+    st.caption("Copy the text below to brag, or download the image card to post anywhere.")
+    st.code(build_share_text(state, summary, scores), language=None)
+    st.download_button(
+        "⬇️ Download image card",
+        data=build_share_svg(state, summary, scores),
+        file_name=f"mind-arena-{datetime.now():%Y%m%d}.svg",
+        mime="image/svg+xml",
+        use_container_width=True,
+    )
 
     st.write("")
     b1, b2 = st.columns(2)

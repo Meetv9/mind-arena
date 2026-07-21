@@ -458,6 +458,37 @@ def profile_summary(entry: dict) -> dict:
     }
 
 
+def leaderboard() -> list:
+    """Rank every profile for the global leaderboard (never raises).
+
+    Sorted by XP (primary), then longest streak, then best single-run score.
+    Each row carries the display name, level, rank title, live streak and
+    totals so the UI can render without re-reading anything.
+    """
+    rows = []
+    for entry in list_profiles():
+        try:
+            s = _read_profile_raw(entry["slug"]) or _default_state(entry["name"], entry["slug"])
+            xp = int(s.get("xp", 0) or 0)
+            rows.append({
+                "name": entry.get("name", "?"),
+                "slug": entry.get("slug", ""),
+                "xp": xp,
+                "level": level_for_xp(xp),
+                "rank": rank_name(xp),
+                "streak": streak_status(s)["current"],
+                "longest": int(s.get("longest_streak", 0) or 0),
+                "runs": int(s.get("total_runs", 0) or 0),
+                "best": int(s.get("best_score", 0) or 0),
+            })
+        except Exception:
+            continue
+    rows.sort(key=lambda r: (r["xp"], r["longest"], r["best"]), reverse=True)
+    for i, r in enumerate(rows):
+        r["pos"] = i + 1
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # Streak logic
 # ---------------------------------------------------------------------------
